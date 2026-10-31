@@ -19,6 +19,7 @@ Built with the **Pi coding agent**. At request time the service runs **determini
 | Design document (1 page) | `docs/Design_Document.pdf` |
 | Architecture document + diagram | `docs/Architecture_Document.pdf`, `docs/architecture_diagram.png` |
 | 5-minute demo script | `docs/DEMO.md` |
+| Build guide for the Pi coding agent | `AGENTS.md`, `docs/BUILD_SPEC.md`, `TODO.md` |
 | Public URL | registered in `/evento/reto` of Frontier |
 
 ## API (contract: `api/participante.openapi.yaml`)
@@ -62,6 +63,10 @@ Every call may carry `Authorization: Bearer <token>`; it is accepted and never u
 ├── docs/                    # design + architecture documents, demo script
 ├── data/                    # (gitignored) raw sources, output, pseudonym map
 ├── run.sh  Dockerfile  requirements.txt  .env.example
+├── knowledge/             # what the system learns: rules, interface map, run lessons
+├── reports/               # review reports for humans after each run
+├── AGENTS.md              # standing instructions for the Pi coding agent
+├── TODO.md                # build checklist
 ├── DECISIONS.md
 └── PLAN.md                  # build plan and timeline (incl. 15:00 incident)
 ```
