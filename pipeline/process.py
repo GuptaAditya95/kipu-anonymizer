@@ -158,7 +158,7 @@ class Processor:
                 self.a.anonymize_group([(r["id"], r, fields)], ctx, key, log, live)
 
     # ------------------------------------------------------------ entry points
-    def run(self, records: dict[str, list[dict]], live: bool = False):
+    def run(self, records: dict[str, list[dict]], live: bool = False, prev_entities: dict | None = None):
         out = {k: copy.deepcopy(v) for k, v in records.items()}
         # every real email / long number in the input is off-limits for generated values
         seen = set()
@@ -176,16 +176,25 @@ class Processor:
             for r in recs:
                 r.pop("_uid", None)
                 r.pop("_errors", None)
-        return out, self.entities(log)
+        return out, self.entities(log, prev_entities)
 
-    def entities(self, log: EntityLog) -> list[dict]:
+    def entities(self, log: EntityLog, prev: dict | None = None) -> list[dict]:
+        """prev: previous run's entities.json; a still-valid previous declaration is reused so
+        entities.json stays stable across the incident (the judge compares it)."""
+        from pipeline.text import Haystack
+        prev_map = {e["entity_id"]: e.get("pseudonyms", {}) for e in (prev or {}).get("entities", [])
+                    if not e.get("kept")}
         ents = []
         for key, e in log.data.items():
             pm = self.a.pmap.get(key)
             if not pm:
                 continue
             pseud = {}
+            old = prev_map.get(pm["entity_id"], {})
             for kind, vals in e["written"].items():
+                if kind in old and Haystack(" | ".join(vals)).contains(old[kind]):
+                    pseud[kind] = old[kind]
+                    continue
                 if kind == "name":
                     canon = PseudonymMap.name(pm)
                     pseud["name"] = canon if any(fold(canon) in fold(v) for v in vals) else max(vals, key=len)

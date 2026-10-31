@@ -124,6 +124,7 @@ class Anonymizer:
         self.pmap.reserve(registry.all_real_name_forms(), registry.all_real_values())
         self.first_names = FIRST_NAMES | registry.first_names()
         self.thread_people: dict[str, set[str]] = {}
+        self.prior_keys = set(pmap.data["entities"])  # people that existed in the previous run
         self._compile()
 
     # ---------------------------------------------------------------- setup
@@ -318,7 +319,7 @@ class Anonymizer:
                 continue
             if len(cands) > 1:
                 pick = [c for c in cands if c in strong_ids] or [c for c in cands if c in cl_ids] \
-                    or [c for c in cands if c in context]
+                    or [c for c in cands if c in context] or [c for c in cands if c in self.prior_keys]
                 s.key = pick[0] if pick else cands[0]
         for s in spans:
             if not s.key:

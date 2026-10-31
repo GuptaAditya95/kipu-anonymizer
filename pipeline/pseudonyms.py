@@ -72,8 +72,9 @@ class PseudonymMap:
         """Return the entity profile for `key`, creating it once."""
         with self.lock:
             ent = self.data["entities"].get(key)
-            if ent:
+            if ent and not self._name_collides(ent):
                 return ent
+            old_ent = ent  # None, or an old pseudonym that now equals a newly arrived real name
             names = self.female if gender == "F" else self.male
             avoid_f = {fold(a) for a in (avoid or set())}
             for c in range(5000):
@@ -86,19 +87,26 @@ class PseudonymMap:
                 s2 = self.surnames[(s >> 36) % len(self.surnames)]
                 fn = " ".join(first)
                 full_short = fold(f"{fn} {s1}")
-                if (s1 == s2 or full_short in self.used_names or full_short in self.reserved
-                        or fold(f"{fn} {s1} {s2}") in self.reserved
+                cand = {"first": fn, "s1": s1, "s2": s2}
+                if (s1 == s2 or full_short in self.used_names or self._name_collides(cand)
                         or fold(s1) in avoid_f or fold(s2) in avoid_f):
                     continue
                 break
             # id from a hash of the stable key: identical on any fresh rebuild, order-independent
             eid = "p_" + hashlib.sha256(self.salt + key.encode()).hexdigest()[:10]
             ent = {"entity_id": eid, "gender": gender,
-                   "first": fn, "s1": s1, "s2": s2, "values": {}}
+                   "first": fn, "s1": s1, "s2": s2, "values": old_ent["values"] if old_ent else {}}
             self.data["next_id"] += 1
             self.data["entities"][key] = ent
             self.used_names.add(full_short)
             return ent
+
+    def _name_collides(self, ent) -> bool:
+        """True if any multi-word form we would write equals a real person's name form."""
+        f1 = ent["first"].split()[0]
+        forms = {f"{ent['first']} {ent['s1']}", f"{ent['first']} {ent['s1']} {ent['s2']}",
+                 f"{f1} {ent['s1']}", f"{f1} {ent['s1']} {ent['s2']}"}
+        return any(fold(x) in self.reserved for x in forms)
 
     @staticmethod
     def name(ent) -> str:
@@ -115,7 +123,10 @@ class PseudonymMap:
         vk = f"{kind}|{original}"
         with self.lock:
             if vk in ent["values"]:
-                return ent["values"][vk]
+                old = ent["values"][vk]
+                if _canon(old) not in self.reserved_values:  # still safe -> keep (stability)
+                    return old
+                self.used_values.discard(old)  # collides with newly arrived real data -> redo
             for c in range(200):
                 v = make(self.seed(key, vk, c))
                 if c and "@" in v:  # pattern-based emails ignore the seed: add digits on retries

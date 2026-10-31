@@ -150,7 +150,12 @@ class Registry:
                 self.by_uid[u] = k
 
     def build(self, records: dict[str, list[dict]], users: dict[str, dict],
-              chats_by_user: dict[str, list[str]] | None = None) -> None:
+              chats_by_user: dict[str, list[str]] | None = None,
+              prior_links: dict[str, str] | None = None,
+              prior_people_by_user: dict[str, set[str]] | None = None) -> None:
+        """prior_links: uid -> key saved by the previous run; prior_people_by_user: people that
+        the previous run saw in this user's threads. Both keep old links stable when new data
+        brings a namesake (e.g. a new customer with an old customer's name)."""
         for r in records.get("tables", []):
             c, t = r["columns"], r["table"]
             if t == "clientes":
@@ -188,10 +193,19 @@ class Registry:
             real = u.get("real_name") or prof.get("real_name") or ""
             email = (prof.get("email") or "").lower()
             key = self.by_id.get(email) if email else None
-            if not key:
+            prior = (prior_people_by_user or {}).get(uid, set())
+            keep_separate = False
+            if not key and prior_links and prior_links.get(uid) in self.people:
+                key = prior_links[uid]
+            if not key and f"uid:{uid}" in prior:
+                keep_separate = True  # the previous run kept this user as their own person
+            if not key and not keep_separate:
                 cands = name_index.get(fold(real), []) or sorted(
                     k for k in self.by_form.get(fold(real), set()) if self.people[k].kind == "client")
-                if len(cands) == 1:
+                in_prior = set(cands) & prior
+                if len(cands) > 1 and len(in_prior) == 1:
+                    key = in_prior.pop()  # keep the previous run's link despite a new namesake
+                elif len(cands) == 1:
                     key = cands[0]
                 elif len(cands) > 1 and chats_by_user:
                     texts = " ".join(chats_by_user.get(uid, []))
@@ -222,6 +236,9 @@ class Registry:
     # ----------------------------------------------------------- lookup
     def all_real_name_forms(self) -> set[str]:
         return {f for p in self.people.values() for f in p.multi_token_forms()}
+
+    def uid_links(self) -> dict[str, str]:
+        return dict(self.by_uid)
 
     def all_real_values(self) -> set[str]:
         out = set()

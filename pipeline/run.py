@@ -26,6 +26,7 @@ OUT = DATA / "output"
 STATE_DIR = DATA / "state"
 MAP = STATE_DIR / "pseudonym_map.json"
 THREADS = STATE_DIR / "thread_people.json"
+LINKS = STATE_DIR / "uid_links.json"
 
 
 class State:
@@ -41,10 +42,15 @@ class State:
     def build(self, records: dict) -> Processor:
         users = normalize.load_users(RAW) if (RAW / "chats" / "users.json").exists() else {}
         by_user: dict[str, list[str]] = {}
+        threads_by_user: dict[str, set[str]] = {}
         for r in records.get("chats", []):
             by_user.setdefault(r.get("_uid") or "", []).append(r.get("text", ""))
+            threads_by_user.setdefault(r.get("_uid") or "", set()).add(r.get("thread_id", ""))
+        thread_people = json.loads(THREADS.read_text("utf-8")) if THREADS.exists() else {}
+        prior_people = {u: {k for t in ts for k in thread_people.get(t, [])} for u, ts in threads_by_user.items()}
+        prior_links = json.loads(LINKS.read_text("utf-8")) if LINKS.exists() else {}
         reg = Registry()
-        reg.build(records, users, by_user)
+        reg.build(records, users, by_user, prior_links, prior_people)
         anon = Anonymizer(reg, self.pmap, self.jev_cache)
         if THREADS.exists():
             anon.thread_people = {k: set(v) for k, v in json.loads(THREADS.read_text("utf-8")).items()}
@@ -66,6 +72,7 @@ class State:
         STATE_DIR.mkdir(parents=True, exist_ok=True)
         THREADS.write_text(json.dumps({k: sorted(v) for k, v in self.processor.a.thread_people.items()},
                                       ensure_ascii=False), "utf-8")
+        LINKS.write_text(json.dumps(self.processor.reg.uid_links(), ensure_ascii=False), "utf-8")
 
 
 def run_pipeline(sources_url: str | None, token: str | None, state: State, offline: bool = False) -> dict:
@@ -81,7 +88,7 @@ def run_pipeline(sources_url: str | None, token: str | None, state: State, offli
         cur_snapshot = snapshot.take(RAW, records)
         summary["changes"] = snapshot.diff(prev_snapshot, cur_snapshot)
         state.processor = state.build(records)
-        out, entities = state.processor.run(records)
+        out, entities = state.processor.run(records, prev_entities=prev_entities)
 
         tmp = DATA / "output.tmp"
         if tmp.exists():
