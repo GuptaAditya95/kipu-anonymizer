@@ -16,6 +16,10 @@ import traceback
 import uuid
 from datetime import datetime, timezone
 
+from pipeline.env import load_env
+
+load_env()  # .env next to the repo (does not override variables already set)
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel

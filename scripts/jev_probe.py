@@ -12,6 +12,8 @@ import sys
 import httpx
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline.env import load_env  # noqa: E402
+load_env()
 from pipeline import jev  # noqa: E402
 
 key = os.environ.get("OPENROUTER_API_KEY")

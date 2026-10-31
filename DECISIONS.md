@@ -29,10 +29,11 @@ The brief asks three questions. Draft answers below, to be updated with real num
 
 | Item | Value |
 |---|---|
-| LLM tokens per `/run` | 0 (rules-only). If Jev is enabled: _fill in calls / tokens_ |
-| Wall time per `/run` | _fill in_ (expected 2–5 min, mostly downloads) |
-| Requests to sources API | _fill in_ (about 230 at current size) |
-| `/anonymize` latency (50 records) | _fill in_ |
+| LLM tokens per `/run` (core pipeline) | **0**: detection, pseudonyms and replacement are deterministic code |
+| Wall time per `/run` (laptop, incl. download) | **34 s** before the incident, **53–80 s** after (2 self-check passes) |
+| Requests to sources API | **183** before, **213** after the incident (limit 600/min) |
+| `/anonymize` latency (50 records) | **< 1 s** |
+| Verification (after the run, optional) | Jev at about $0.042 per million input tokens, roughly a few cents per full run and cached afterwards; reasoning only on the ~45 flagged cases |
 
 ## Key design decisions
 

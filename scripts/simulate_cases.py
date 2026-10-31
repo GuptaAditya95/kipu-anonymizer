@@ -16,6 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+from pipeline.env import load_env  # noqa: E402
+load_env()
 DATA = Path(os.environ.get("DATA_DIR", ROOT / "data"))
 
 CASES = [  # (label, is_pii, text appended to a chat message)

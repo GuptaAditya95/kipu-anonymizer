@@ -14,7 +14,11 @@ import threading
 import time
 from pathlib import Path
 
-from pipeline import ingest, jev, knowledge, normalize, output, snapshot
+from pipeline.env import load_env
+
+load_env()  # before DATA_DIR is read below
+
+from pipeline import ingest, jev, knowledge, normalize, output, snapshot  # noqa: E402
 from pipeline.core import Anonymizer
 from pipeline.fileio import write_json
 from pipeline.process import Processor
@@ -130,11 +134,6 @@ def run_pipeline(sources_url: str | None, token: str | None, state: State, offli
 
 
 if __name__ == "__main__":
-    try:
-        from dotenv import load_dotenv  # optional
-        load_dotenv()
-    except Exception:
-        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--sources-url", default=os.environ.get("SOURCES_URL"))
     ap.add_argument("--token", default=os.environ.get("SOURCES_TOKEN"))
