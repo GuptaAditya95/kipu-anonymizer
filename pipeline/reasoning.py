@@ -129,4 +129,5 @@ def reason_all(cases: list[dict], state_dir: Path, progress=None) -> None:
                 progress(n, len(cases))
     for c in cases:
         c["reasoning"] = cache.get(c["case_id"])
-    cache_p.write_text(json.dumps(cache, ensure_ascii=False, indent=1), "utf-8")
+    from pipeline.fileio import write_json
+    write_json(cache_p, cache)

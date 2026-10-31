@@ -149,10 +149,8 @@ class PseudonymMap:
 
     def save(self) -> None:
         with self.lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
-            tmp.replace(self.path)
+            from pipeline.fileio import write_json
+            write_json(self.path, self.data)
 
 
 def _canon(v: str) -> str:

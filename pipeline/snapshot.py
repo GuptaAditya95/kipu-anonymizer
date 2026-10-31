@@ -59,5 +59,5 @@ def load(state_dir: Path) -> dict | None:
 
 
 def save(state_dir: Path, snap: dict) -> None:
-    state_dir.mkdir(parents=True, exist_ok=True)
-    (state_dir / "snapshot.json").write_text(json.dumps(snap, ensure_ascii=False, indent=1), "utf-8")
+    from pipeline.fileio import write_json
+    write_json(state_dir / "snapshot.json", snap)

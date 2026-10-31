@@ -16,6 +16,7 @@ from pathlib import Path
 
 from pipeline import ingest, jev, knowledge, normalize, output, snapshot
 from pipeline.core import Anonymizer
+from pipeline.fileio import write_json
 from pipeline.process import Processor
 from pipeline.pseudonyms import PseudonymMap
 from pipeline.registry import Registry
@@ -71,10 +72,10 @@ class State:
 
     def save(self) -> None:
         self.pmap.save()
+        self.jev_cache.flush()
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        THREADS.write_text(json.dumps({k: sorted(v) for k, v in self.processor.a.thread_people.items()},
-                                      ensure_ascii=False), "utf-8")
-        LINKS.write_text(json.dumps(self.processor.reg.uid_links(), ensure_ascii=False), "utf-8")
+        write_json(THREADS, {k: sorted(v) for k, v in self.processor.a.thread_people.items()}, indent=None)
+        write_json(LINKS, self.processor.reg.uid_links(), indent=None)
 
 
 def run_pipeline(sources_url: str | None, token: str | None, state: State, offline: bool = False) -> dict:
@@ -124,7 +125,7 @@ def run_pipeline(sources_url: str | None, token: str | None, state: State, offli
         summary["jev"] = {"calls": state.jev_cache.calls, "tokens_in": state.jev_cache.tokens_in,
                           "cost_usd": round(state.jev_cache.cost, 6)}
         summary["seconds"] = round(time.time() - t0, 1)
-        (STATE_DIR / "last_run.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1), "utf-8")
+        write_json(STATE_DIR / "last_run.json", summary)
     return summary
 
 

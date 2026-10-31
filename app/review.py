@@ -88,7 +88,8 @@ def make_router(get_state, out_dir: Path, state_dir: Path) -> APIRouter:
             knowledge.record_answer(case, a.model_dump())
         case["status"] = "answered"
         case["answer"] = a.model_dump()
-        (state_dir / verify.CASES).write_text(json.dumps(data, ensure_ascii=False, indent=1), "utf-8")
+        from pipeline.fileio import write_json
+        write_json(state_dir / verify.CASES, data)
         return {"ok": True}
 
     @router.get("/v1/review/knowledge")

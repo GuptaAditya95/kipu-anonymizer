@@ -62,10 +62,15 @@ class JevCache:
     def put(self, k: str, v) -> None:
         with self.lock:
             self.data[k] = v
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), "utf-8")
-            tmp.replace(self.path)
+            self.dirty = True
+
+    def flush(self) -> None:
+        """Save once (callers flush after a batch; parallel workers never write the file)."""
+        from pipeline.fileio import write_json
+        with self.lock:
+            if getattr(self, "dirty", False):
+                write_json(self.path, self.data)
+                self.dirty = False
 
 
 def _post(state, questions: dict, cache: JevCache | None) -> dict | None:

@@ -38,11 +38,9 @@ def load(path: Path | None = None) -> dict:
 
 def save(k: dict, path: Path | None = None) -> None:
     p = path or PATH
+    from pipeline.fileio import write_json
     with _LOCK:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = p.with_suffix(".tmp")
-        tmp.write_text(json.dumps(k, ensure_ascii=False, indent=1), "utf-8")
-        tmp.replace(p)
+        write_json(p, k)
 
 
 def record_answer(case: dict, answer: dict, path: Path | None = None) -> dict:

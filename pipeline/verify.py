@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 from pipeline import jev
+from pipeline.fileio import write_json
 from pipeline.core import KEEP, KEEP_FOLD, RX_ADDRESS, RX_EMAIL, SURNAMES, folded
 from pipeline.registry import FIRST_NAMES
 from pipeline.text import fold, slug
@@ -316,7 +317,9 @@ def verify(out_dir: Path, state_dir: Path, registry=None, knowledge_data: dict |
     # 3: jev on free text only, deduplicated, parallel
     free = {f"{i['rid']}::{i['field']}": i["masked"] for i in items
             if i["source"] != "tables" or i["field"] in ("columns.notas", "columns.descripcion", "columns.respuesta")}
-    scores = jev_scores(free, jev.JevCache(state_dir / "jev_cache.json")) if use_jev else {}
+    jcache = jev.JevCache(state_dir / "jev_cache.json")
+    scores = jev_scores(free, jcache) if use_jev else {}
+    jcache.flush()
 
     # 4: decide
     counts = {"pass": 0, "review_low": 0, "review_high": 0}
@@ -378,7 +381,7 @@ def verify(out_dir: Path, state_dir: Path, registry=None, knowledge_data: dict |
               "records": len(records), "texts_checked": len(items), "jev_enabled": jev.enabled() and use_jev,
               "decisions": counts, "cases": cases,
               "thresholds": {"low": LOW, "high": HIGH}}
-    (state_dir / CASES).write_text(json.dumps(result, ensure_ascii=False, indent=1), "utf-8")
+    write_json(state_dir / CASES, result)
     return result
 
 

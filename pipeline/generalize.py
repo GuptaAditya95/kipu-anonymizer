@@ -118,10 +118,8 @@ class Occupations:
             self.learned[key] = {"original": original, "sector": sector,
                                  "probability": round(prob, 3), "proposed_keyword": stem,
                                  "status": "pending_review"}
-            LEARNED.parent.mkdir(parents=True, exist_ok=True)
-            tmp = LEARNED.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.learned, ensure_ascii=False, indent=1), "utf-8")
-            tmp.replace(LEARNED)
+            from pipeline.fileio import write_json
+            write_json(LEARNED, self.learned)
 
 
 # ------------------------------------------------------------------ years
