@@ -1,0 +1,165 @@
+{
+ "_note": "Keyword (prefix/substring, lowercase, accentless) -> sector. Tried after the exact map, before Jev. New keywords learned via Jev are appended by scripts/promote_learned.py after human review.",
+ "rules": [
+  [
+   "ingenier",
+   "profesional de ingeniería y tecnología"
+  ],
+  [
+   "desarrollador",
+   "profesional de ingeniería y tecnología"
+  ],
+  [
+   "programador",
+   "profesional de ingeniería y tecnología"
+  ],
+  [
+   "estudiante",
+   "estudiante universitario"
+  ],
+  [
+   "medic",
+   "profesional de la salud"
+  ],
+  [
+   "enfermer",
+   "profesional de la salud"
+  ],
+  [
+   "odontolog",
+   "profesional de la salud"
+  ],
+  [
+   "fisioterap",
+   "profesional de la salud"
+  ],
+  [
+   "psicolog",
+   "profesional de la salud"
+  ],
+  [
+   "veterinari",
+   "profesional de la salud"
+  ],
+  [
+   "nutricion",
+   "profesional de la salud"
+  ],
+  [
+   "abogad",
+   "profesional del derecho"
+  ],
+  [
+   "contad",
+   "profesional financiero"
+  ],
+  [
+   "contable",
+   "profesional financiero"
+  ],
+  [
+   "financ",
+   "profesional financiero"
+  ],
+  [
+   "docente",
+   "profesional de la educación"
+  ],
+  [
+   "profesor",
+   "profesional de la educación"
+  ],
+  [
+   "maestr",
+   "profesional de la educación"
+  ],
+  [
+   "periodist",
+   "profesional de medios"
+  ],
+  [
+   "comunicador",
+   "profesional de medios"
+  ],
+  [
+   "fotograf",
+   "profesional de las industrias creativas"
+  ],
+  [
+   "disenad",
+   "profesional de las industrias creativas"
+  ],
+  [
+   "music",
+   "profesional de las industrias creativas"
+  ],
+  [
+   "arquitect",
+   "profesional de arquitectura y diseño"
+  ],
+  [
+   "piloto",
+   "profesional de la aviación"
+  ],
+  [
+   "conductor",
+   "trabajador de transporte"
+  ],
+  [
+   "mensajer",
+   "trabajador de transporte"
+  ],
+  [
+   "taxista",
+   "trabajador de transporte"
+  ],
+  [
+   "mecanic",
+   "técnico"
+  ],
+  [
+   "electricist",
+   "técnico"
+  ],
+  [
+   "tecnic",
+   "técnico"
+  ],
+  [
+   "chef",
+   "trabajador de gastronomía"
+  ],
+  [
+   "cocin",
+   "trabajador de gastronomía"
+  ],
+  [
+   "panader",
+   "trabajador de gastronomía"
+  ],
+  [
+   "meser",
+   "trabajador de gastronomía"
+  ],
+  [
+   "comerciant",
+   "trabajador del comercio"
+  ],
+  [
+   "vendedor",
+   "trabajador del comercio"
+  ],
+  [
+   "administrad",
+   "profesional de servicios"
+  ],
+  [
+   "estilist",
+   "trabajador de oficios"
+  ],
+  [
+   "peluquer",
+   "trabajador de oficios"
+  ]
+ ]
+}

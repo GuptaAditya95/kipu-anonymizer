@@ -46,6 +46,12 @@ The brief asks three questions. Draft answers below, to be updated with real num
 | One shared core for `/run` and `/anonymize` | Separate logic | Same pseudonym in batch and live |
 | Jev only for typed decisions on leftovers (optional) | Generative LLM for detection | Cheap and fast; cached answers stay deterministic; pipeline works without it |
 
+## Keeping the data trainable
+
+- **Barrios** in tables are replaced by another barrio of the **same zone of the same city** (e.g. Granada → Santa Mónica, both north Cali), so the location distribution stays realistic. In free text a barrio is generalized to the city.
+- **Occupations** map to a closed list of 17 sectors, in this order: exact table (all 35 real occupations), learned decisions, keyword rules, then **Jev** (TypeSafe decision model via OpenRouter) choosing among the existing sectors. Confident Jev decisions are stored and proposed as new keywords. A human promotes them into the versioned rules, so the next run needs no model call.
+- Jev answers are cached, so decisions are deterministic across runs and after the data grows.
+
 ## Known limitations
 
 Rare or foreign names of unknown third parties may leak (no trained NER, and PII libraries are banned). Namesakes in free text with no linking identifier may merge. Nicknames, pronoun references, ages written in words and text inside images are not handled. Quasi-identifiers beyond the defined combination are not generalized. The single-process, in-memory design is sized for this corpus, not millions of records.

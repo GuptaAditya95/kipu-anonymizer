@@ -140,7 +140,11 @@ Resolution: a strong id in the same record (cédula/email/phone/cliente_id/radic
 - Keep the form: first-name → pseudonym first names; full → full; CAPS → CAPS; accentless → accentless; slug → slug; dotted cédula → dotted; spelled email → spelled.
 - Fields: chats `author, text, attachments[].filename`; docs `filename, title, body, metadata values`; tables every column except ids/business columns (`cliente_id, tx_id, radicado, id, fecha, fecha_vinculacion, monto, tipo, canal, estado, ciudad, cargo`).
 - `reporta_a` → short form (first + first surname) of the referenced employee's pseudonym.
-- Generalize: `ocupacion` via `resources/occupation_sector.json`; `barrio` via `resources/barrios_by_city.json` (another barrio of the same city, seeded); in text near a person's mention: occupation → sector, barrio → city-level or replacement barrio, year `20\d\d` in phrases like "entré en / desde / en el" → "hace unos años".
+- Generalize (**already implemented in `pipeline/generalize.py`, with tests**; wire it in):
+  - Table `barrio` → `Barrios().nearby(barrio, ciudad, seed)`: another barrio of the **same zone** of the same city (`resources/barrios_by_city.json`), so the geography stays trainable (Granada → Santa Mónica, both north Cali).
+  - Free-text barrio → `barrio_in_text()` → the **city** ("en Granada" → "en Cali"), as in the sample.
+  - `ocupacion` (table and text) → `Occupations().to_sector()`: exact map → learned map → keyword rules → **Jev choice among existing sectors** → fallback "trabajador independiente". Confident Jev answers are saved to `DATA_DIR/state/learned_occupations.json` with a proposed keyword; `scripts/promote_learned.py --accept` adds them to the versioned JSON after human review.
+  - Years in identifying phrases → `generalize_years()` → "hace unos años".
 
 ### 5.8 `pipeline/core.py`
 `anonymize_records(source, records, state)` → `(records, entities)`. It's used by `/run` for all records and by `/anonymize` per batch. It must work with no registry (cold start: regex + name list).
@@ -148,6 +152,13 @@ Resolution: a strong id in the same record (cédula/email/phone/cliente_id/radic
 ### 5.9 `pipeline/output.py`
 - `entities.json`: persons with `originals` = **every form actually found in the input** (not just registry forms), `pseudonyms` = only values actually written, `records` = ids where it appears. Kept orgs/places from the keep-list hits, with `kept: true`.
 - `leak_sweep`: use `text.contains` (judge-equivalent) for all originals across all output → list of `(entity, original, record ids)`.
+
+### 5.9b Jev through OpenRouter (implemented in `pipeline/jev.py`)
+- Endpoint `POST https://openrouter.ai/api/v1/systemone`, auth `Bearer $OPENROUTER_API_KEY`, model `jev-1.13` (or `jev-latest`). No TypeSafe account needed. Output tokens are free; you pay per input token.
+- Question types used: `choice` (with `criteria` = option → description) and `noul` (yes probability).
+- Uses: (1) unknown occupation → choose among `occupation_sectors.json`; (2) leftover capitalized span → person/organization/place/other (`classify_span`); (3) optional namesake tie-break (choose between candidate profiles).
+- Guarantees: every answer cached in `DATA_DIR/state/jev_cache.json` (same question is never asked twice → deterministic); timeout 4 s; confidence threshold 0.6; any failure → rules fallback; disabled when no key. Calls, input tokens and cost are counted for `/run` cost and DECISIONS.md.
+- First step: `python scripts/jev_probe.py` to confirm the key and the exact `choice` answer shape (adjust `_parse_choice` if needed).
 
 ### 5.10 `knowledge/` (new) and the review loop (after run #1)
 - `knowledge/interface_map.json` (written by ingest: endpoints, fields, encodings, counts), `knowledge/rules/` (move `resources/*.json` here or symlink), `knowledge/learned_from_runs.md` (run → failed tests → hypothesis → rule → result), `knowledge/jev_cache.json`.
@@ -200,7 +211,10 @@ Done when: tests pass, validator OK, same 8,297 records.
 **T12. Deploy** · Fast
 > Check the Dockerfile works locally (`docker build` if available) and that run.sh starts the server. Write the exact Railway steps in README (volume at /data, SALT, generate domain). Don't change the pipeline.
 
-**T13–T16.** After 15:00: incident (§9), review loop (§5.10), optional Jev (`pipeline/jev.py` docstring), DECISIONS.md costs.
+**T7b. Jev check** · Fast
+> Run `python scripts/jev_probe.py` with my OPENROUTER_API_KEY. If the choice answer shape differs from `_parse_choice`, fix the parser and its test. Then wire `jev.classify_span` into detect for leftover capitalized spans (person → new entity, organization/place → keep, low confidence → mask if name-like). Use a JevCache at DATA_DIR/state/jev_cache.json and add its calls/tokens/cost to the run summary.
+
+**T13–T16.** After 15:00: incident (§9), review loop (§5.10), promote learned occupations (`scripts/promote_learned.py`), DECISIONS.md costs.
 
 ---
 
@@ -215,7 +229,8 @@ Pi switches models mid-session with `/model` (or Ctrl+L) and cycles favourites w
 | **Fast / cheap** | mechanical work: T0, T2, T11, T12, resource lists, README/docs, small refactors | Claude Haiku 5.5, DeepSeek Flash-class, or similar | low/off |
 | **Auto** | when unsure | an OpenRouter auto-router (e.g. Jev Router) picks model and effort per request | — |
 | **Reviewer** | second opinion before an evaluation run | a **different** model from the one that wrote the code: "review pipeline/ for rule violations in AGENTS.md and for leaks" | high |
-| **Runtime** | inside the service | none on the hot path. Jev (typed decisions, optional) and a review LLM offline only (§5.10) | — |
+| **Runtime: decisions** | inside the service | **Jev via OpenRouter** (`jev-1.13`): only for unknown occupations and leftover spans, cached, 4 s timeout (§5.9b) | — |
+| **Runtime: review report** | offline after each run | a strong chat model via OpenRouter writes the human report (§5.10) | medium |
 
 Cost and context tips:
 - Start each task in a fresh context (or `/compact` between tasks). AGENTS.md is reloaded and keeps the rules.

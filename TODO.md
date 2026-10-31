@@ -8,7 +8,8 @@
 - [ ] T4 Person registry (clientes, empleados, chat users) with all forms
 - [ ] T5 Pseudonym generators (name/email/cedula/phone/address/birth/plate/passport) + uniqueness
 - [ ] T6 Detection (regex + registry + name list + keep-list) and resolution (strong ids first)
-- [ ] T7 Replacement in every field, keeping the form + generalization of quasi-identifiers
+- [ ] T7 Replacement in every field, keeping the form + wire generalization (generalize.py is done: nearby barrios, occupation→sector with Jev fallback)
+- [ ] T7b Jev check via OpenRouter (scripts/jev_probe.py) + classify leftover spans
 - [ ] T8 entities.json builder + judge-equivalent leak sweep
 - [ ] T9 Sample passes: 13/13 sample tests, validator OK, similarity check
 - [ ] T10 Full data: 5/5 public tests, leak sweep ≈ 0, validator OK
@@ -18,5 +19,5 @@
 ## After 15:00
 - [ ] T13 Incident: read `changes`, verify stability = 100%, fix, write INCIDENT.md, run #2
 - [ ] T14 Review loop: misses collector + scripts/review.py report
-- [ ] T15 Optional Jev classification of leftovers
+- [ ] T15 Review and promote Jev-learned occupations (scripts/promote_learned.py)
 - [ ] T16 Fill DECISIONS.md costs, demo, run #3

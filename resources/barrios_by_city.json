@@ -1,26 +1,149 @@
 {
- "_note": "barrios per city for generalization. Extend from clientes.csv.",
- "Cali": [
-  "Granada",
-  "Santa Mónica",
-  "El Peñón",
-  "San Fernando"
- ],
- "Medellín": [
-  "Envigado",
-  "Castilla",
-  "Robledo",
-  "Laureles"
- ],
- "Bogotá": [
-  "Cedritos",
-  "Chapinero",
-  "Usaquén",
-  "Teusaquillo"
- ],
- "Bucaramanga": [
-  "Cabecera",
-  "Real de Minas",
-  "Sotomayor"
- ]
+ "_note": "city -> zone -> barrios. A barrio is replaced by another barrio of the SAME ZONE (nearby, similar profile), so the data stays geographically trainable. Zones are approximate groupings; review and extend. Barrios not in the data are real nearby places added as candidates.",
+ "Medellín": {
+  "sur_oriente": [
+   "El Poblado",
+   "Envigado",
+   "Sabaneta",
+   "Provenza"
+  ],
+  "sur_occidente": [
+   "Belén",
+   "Itagüí",
+   "Guayabal"
+  ],
+  "occidente": [
+   "Laureles",
+   "La América",
+   "Estadio",
+   "Calasanz"
+  ],
+  "centro_oriente": [
+   "Boston",
+   "Buenos Aires",
+   "Prado",
+   "Manrique"
+  ],
+  "noroccidente": [
+   "Castilla",
+   "Robledo",
+   "Doce de Octubre"
+  ]
+ },
+ "Bogotá": {
+  "norte": [
+   "Cedritos",
+   "Chicó",
+   "Usaquén",
+   "Santa Bárbara"
+  ],
+  "chapinero_teusaquillo": [
+   "Chapinero",
+   "Teusaquillo",
+   "Galerías",
+   "Palermo"
+  ],
+  "centro": [
+   "La Candelaria",
+   "Santa Fe",
+   "Las Nieves"
+  ],
+  "centro_sur": [
+   "Restrepo",
+   "Galán",
+   "Santa Isabel"
+  ],
+  "suroccidente": [
+   "Kennedy",
+   "Castilla",
+   "Timiza"
+  ],
+  "noroccidente": [
+   "Suba",
+   "Niza",
+   "Colina Campestre"
+  ]
+ },
+ "Cali": {
+  "norte": [
+   "Granada",
+   "Santa Mónica",
+   "Versalles"
+  ],
+  "oeste": [
+   "El Peñón",
+   "San Fernando",
+   "San Antonio"
+  ],
+  "sur": [
+   "Ciudad Jardín",
+   "El Ingenio",
+   "Pance"
+  ]
+ },
+ "Barranquilla": {
+  "centro_norte": [
+   "El Prado",
+   "Boston",
+   "Bellavista"
+  ],
+  "norte": [
+   "Riomar",
+   "Villa Country",
+   "Alto Prado"
+  ]
+ },
+ "Cartagena": {
+  "bocagrande": [
+   "Bocagrande",
+   "Castillogrande",
+   "El Laguito"
+  ],
+  "centro": [
+   "Getsemaní",
+   "Manga",
+   "Pie de la Popa",
+   "San Diego"
+  ],
+  "norte": [
+   "Crespo",
+   "Marbella",
+   "Cielo Mar"
+  ]
+ },
+ "Bucaramanga": {
+  "oriente": [
+   "Cabecera",
+   "Sotomayor",
+   "Mejoras Públicas"
+  ],
+  "sur": [
+   "Real de Minas",
+   "Provenza",
+   "Diamante II"
+  ],
+  "floridablanca": [
+   "Cañaveral",
+   "Lagos del Cacique",
+   "Altos de Cañaveral"
+  ]
+ },
+ "Pereira": {
+  "oriente": [
+   "Pinares",
+   "Álamos",
+   "Circunvalar",
+   "Maraya"
+  ],
+  "sur_occidente": [
+   "Cuba",
+   "Villa Olímpica",
+   "Parque Industrial"
+  ],
+  "dosquebradas": [
+   "Dosquebradas",
+   "La Pradera",
+   "Guadalupe"
+  ]
+ }
 }

@@ -1,0 +1,22 @@
+{
+ "_note": "The closed list of allowed sectors. Jev chooses among these for unseen occupations.",
+ "sectors": [
+  "profesional de las industrias creativas",
+  "profesional de medios",
+  "profesional del derecho",
+  "profesional de la salud",
+  "profesional financiero",
+  "profesional de ingeniería y tecnología",
+  "profesional de arquitectura y diseño",
+  "profesional de la educación",
+  "profesional de servicios",
+  "profesional de la aviación",
+  "trabajador de transporte",
+  "técnico",
+  "trabajador de oficios",
+  "trabajador del comercio",
+  "trabajador de gastronomía",
+  "estudiante universitario",
+  "trabajador independiente"
+ ]
+}
