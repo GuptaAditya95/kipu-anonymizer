@@ -19,6 +19,7 @@ import csv
 import io
 import json
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -52,6 +53,7 @@ def normalize_chats(raw: Path) -> list[dict]:
                     lambda g: "@" + user_name(users.get(g.group(1)), {}), m.get("text", "")
                 )
                 out.append({
+                    "_uid": m.get("user"),
                     "id": m["client_msg_id"],
                     "thread_id": f"{canal}:{root_ts}",
                     "author": user_name(users.get(m.get("user")), m),
@@ -146,22 +148,96 @@ def xml_rows(path: Path, tag: str) -> list[dict]:
     return rows
 
 
+KNOWN = {"clientes": ("cliente_id", None), "transacciones": ("tx_id", None),
+         "pqrs": ("radicado", "pqr"), "empleados": ("id", "empleado")}
+
+
+def _xml_row_tag(path: Path) -> str:
+    root = ET.fromstring(path.read_bytes())
+    tags = [c.tag for c in root]
+    return max(set(tags), key=tags.count) if tags else ""
+
+
+def _key_col(rows: list[dict], table: str, index_ids: set[str], default: str | None) -> str | None:
+    if default and rows and default in rows[0]:
+        return default
+    keys = {i.split(":", 1)[1] for i in index_ids if i.startswith(table + ":")}
+    for col in (rows[0] if rows else {}):
+        if keys and sum(1 for r in rows[:50] if r.get(col) in keys) >= min(5, len(rows[:50])):
+            return col
+    return next(iter(rows[0]), None) if rows else None
+
+
 def normalize_tables(raw: Path) -> list[dict]:
+    """Tables are discovered from tables.json (name, format, charset, separator), so a new table,
+    a different charset or separator after the incident doesn't break the run."""
     t = raw / "tables"
+    meta = json.loads((t / "tables.json").read_text(encoding="utf-8")) if (t / "tables.json").exists() else [
+        {"name": "clientes.csv", "format": "csv", "charset": "latin-1", "separator": ";"},
+        {"name": "transacciones.csv", "format": "csv", "charset": "utf-8", "separator": ","},
+        {"name": "pqrs.xml", "format": "xml"}, {"name": "empleados.xml", "format": "xml"}]
+    idx_path = raw / "record_index.json"
+    index_ids = set(json.loads(idx_path.read_text("utf-8")).get("tables", [])) if idx_path.exists() else set()
     out = []
-    for r in csv_rows(t / "clientes.csv", "latin-1", ";"):
-        out.append({"id": f"clientes:{r['cliente_id']}", "table": "clientes", "columns": r})
-    for r in csv_rows(t / "transacciones.csv", "utf-8", ","):
-        out.append({"id": f"transacciones:{r['tx_id']}", "table": "transacciones", "columns": r})
-    for r in xml_rows(t / "pqrs.xml", "pqr"):
-        out.append({"id": f"pqrs:{r['radicado']}", "table": "pqrs", "columns": r})
-    for r in xml_rows(t / "empleados.xml", "empleado"):
-        out.append({"id": f"empleados:{r['id']}", "table": "empleados", "columns": r})
+    for m in meta:
+        name = m["name"]
+        table = name.rsplit(".", 1)[0]
+        path = t / name
+        if not path.exists():
+            continue
+        default_key, tag = KNOWN.get(table, (None, None))
+        if m.get("format") == "xml" or name.endswith(".xml"):
+            rows = xml_rows(path, tag or _xml_row_tag(path))
+        else:
+            cs = (m.get("charset") or "utf-8").replace("latin-1", "latin-1")
+            rows = csv_rows(path, cs, m.get("separator") or ",")
+        key = _key_col(rows, table, index_ids, default_key)
+        for r in rows:
+            out.append({"id": f"{table}:{r.get(key, '')}", "table": table, "columns": r})
     for rec in out:  # values as text
         rec["columns"] = {k: "" if v is None else str(v) for k, v in rec["columns"].items()}
     return out
 
 
+def _nfc(obj):
+    if isinstance(obj, str):
+        return unicodedata.normalize("NFC", obj)
+    if isinstance(obj, list):
+        return [_nfc(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _nfc(v) for k, v in obj.items()}
+    return obj
+
+
 def normalize(raw: Path) -> dict[str, list[dict]]:
-    return {"chats": normalize_chats(raw), "docs": normalize_docs(raw),
-            "tables": normalize_tables(raw)}
+    """All sources in the output schema. Any id in record_index that couldn't be built is added
+    as a pass-through placeholder (logged), so the output is always 1:1."""
+    recs = {"chats": normalize_chats(raw), "docs": normalize_docs(raw), "tables": normalize_tables(raw)}
+    recs = _nfc(recs)
+    idx_path = raw / "record_index.json"
+    missing = {}
+    if idx_path.exists():
+        index = json.loads(idx_path.read_text("utf-8"))
+        for src, ids in index.items():
+            have = {r["id"] for r in recs.get(src, [])}
+            miss = [i for i in ids if i not in have]
+            missing[src] = len(miss)
+            for i in miss:
+                if src == "chats":
+                    recs[src].append({"id": i, "thread_id": f"unknown:{i}", "author": "", "ts": "",
+                                      "text": "", "attachments": []})
+                elif src == "docs":
+                    recs[src].append({"id": i, "format": "md", "filename": "", "title": "", "body": "",
+                                      "metadata": {}})
+                else:
+                    table, _, k = i.partition(":")
+                    recs.setdefault(src, []).append({"id": i, "table": table, "columns": {}})
+            # drop extras and duplicates not in the index
+            seen, keep = set(), []
+            for r in recs.get(src, []):
+                if r["id"] in set(ids) and r["id"] not in seen:
+                    seen.add(r["id"])
+                    keep.append(r)
+            recs[src] = keep
+    recs["_missing"] = missing
+    return recs

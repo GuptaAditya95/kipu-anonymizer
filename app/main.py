@@ -19,7 +19,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from pipeline import core
 from pipeline import jev
 from pipeline.run import OUT, State, run_pipeline
 
@@ -49,7 +48,7 @@ def now() -> str:
 
 @app.get("/v1/health")
 def health():
-    models = ["rules"] + (["jev-latest"] if jev.ENABLED else [])
+    models = ["rules"] + ([f"openrouter/typesafe/{jev.MODEL}"] if jev.enabled() else [])
     return {"status": "ok", "team": TEAM, "version": VERSION, "models": models}
 
 
@@ -60,12 +59,16 @@ def _worker(job_id: str, req: RunRequest):
     try:
         with RUN_LOCK:
             summary = run_pipeline(req.sources_url, req.token, STATE)
-        job.update(status="done", records=summary["records"])
+        job.update(status="done", records=summary["records"], changes=summary.get("changes"),
+                   stability=summary.get("stability"), leaks=len(summary.get("leaks", [])))
+        job["_jev"] = summary.get("jev", {})
     except Exception as e:  # never kill the server
         job.update(status="failed", error=f"{e}\n{traceback.format_exc()[-1500:]}")
     finally:
         job["finished_at"] = now()
-        job["cost"] = {"tokens_in": 0, "tokens_out": 0, "seconds": round(time.time() - t0, 1)}
+        j = job.pop("_jev", {}) or {}
+        job["cost"] = {"tokens_in": int(j.get("tokens_in", 0)), "tokens_out": 0,
+                       "seconds": round(time.time() - t0, 1)}
 
 
 @app.post("/v1/run", status_code=202)
@@ -110,8 +113,15 @@ def anonymize(req: AnonymizeRequest):
     for r in req.records:
         if "id" not in r:
             raise HTTPException(422, "record without id")
-    records, entities = core.anonymize_records(req.source, req.records, STATE)
-    STATE.pmap.save()  # new people from live calls persist too
+    for r in req.records:
+        r.pop("_uid", None)
+    try:
+        with STATE.lock:
+            out, entities = STATE.processor.run({req.source: req.records}, live=True)
+            STATE.save()  # new people from live calls persist too
+    except Exception as e:  # never crash: return records untouched would leak, so fail loudly
+        raise HTTPException(500, f"anonymize failed: {e}")
+    records = out.get(req.source, [])
     return {"records": records, "entities": entities}
 
 
