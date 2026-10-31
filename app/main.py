@@ -9,6 +9,7 @@ Notes from the event contract:
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 import traceback
@@ -20,13 +21,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from pipeline import jev
-from pipeline.run import OUT, State, run_pipeline
+from pipeline.run import OUT, STATE_DIR, State, run_pipeline
+from app import review
 
 TEAM = "kipu-anonymizer"
 VERSION = "0.1.0"
 
 app = FastAPI(title="Kipu Pay anonymizer")
 STATE = State()          # loads the persisted pseudonym map on boot (cold start safe)
+app.include_router(review.make_router(lambda: STATE, OUT, STATE_DIR))
 JOBS: dict[str, dict] = {}
 RUN_LOCK = threading.Lock()
 CURRENT: dict = {"job_id": None}
@@ -61,6 +64,8 @@ def _worker(job_id: str, req: RunRequest):
             summary = run_pipeline(req.sources_url, req.token, STATE)
         job.update(status="done", records=summary["records"], changes=summary.get("changes"),
                    stability=summary.get("stability"), leaks=len(summary.get("leaks", [])))
+        if os.environ.get("VERIFY", "1") != "0":  # review cases, after 'done' so the judge never waits
+            threading.Thread(target=review.run_verify, args=(STATE, OUT, STATE_DIR), daemon=True).start()
         job["_jev"] = summary.get("jev", {})
     except Exception as e:  # never kill the server
         job.update(status="failed", error=f"{e}\n{traceback.format_exc()[-1500:]}")

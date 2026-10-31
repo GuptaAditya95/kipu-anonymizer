@@ -52,6 +52,16 @@ The brief asks three questions. Draft answers below, to be updated with real num
 - **Occupations** map to a closed list of 17 sectors, in this order: exact table (all 35 real occupations), learned decisions, keyword rules, then **Jev** (TypeSafe decision model via OpenRouter) choosing among the existing sectors. Confident Jev decisions are stored and proposed as new keywords. A human promotes them into the versioned rules, so the next run needs no model call.
 - Jev answers are cached, so decisions are deterministic across runs and after the data grows.
 
+## Verification layer (after the main run)
+
+| Decision | Alternative rejected | Why |
+|---|---|---|
+| Verify **masked** text (our replacements as placeholders) | Verify the raw output, or delete our replacements | Our fakes look like real PII, and deleting them breaks the context that reveals partial misses (`[NOMBRE_1] Patiño`) |
+| Code check first; Jev only adds suspicion | Trust Jev alone | Jev can miss things or be unavailable; a code hit always goes to a human |
+| Reasoning model proposes, a human decides, the next run applies | Auto-apply model fixes | Keeps the shipped output deterministic and auditable; every decision is logged in `knowledge.json` |
+| Runs after `/run` is `done` | Inside the run | The judge never waits, and a model outage can't break a run |
+| Dashboard protected by `REVIEW_KEY` | Open page | It shows real snippets, and the service is public |
+
 ## Known limitations
 
 Rare or foreign names of unknown third parties may leak (no trained NER, and PII libraries are banned). Namesakes in free text with no linking identifier may merge. Nicknames, pronoun references, ages written in words and text inside images are not handled. Quasi-identifiers beyond the defined combination are not generalized. The single-process, in-memory design is sized for this corpus, not millions of records.

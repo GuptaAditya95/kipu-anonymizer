@@ -54,7 +54,7 @@ RX_CAPS_SEQ = re.compile(r"(?<![\w])([A-ZÁÉÍÓÚÑ]{3,}(?:\s+[A-ZÁÉÍÓÚÑ
 CEDULA_CUE = re.compile(r"(c[ée]dula|\bcc\b|c\.c\.|documento|identificaci[oó]n|\bdoc\b|\bnit\b|n[uú]mero de id)", re.I)
 PHONE_CUE = re.compile(r"(celular|cel\b|tel[eé]fono|whats|llamar|n[uú]mero)", re.I)
 HONORIFIC = r"(?:señor|señora|sr\.?|sra\.?|don|doña|estimado señor|estimada señora|apreciado señor|apreciada señora)"
-PRIORITY = {"email": 9, "email_spelled": 9, "address": 8, "cedula": 7, "phone": 7, "passport": 7,
+PRIORITY = {"identifier": 8, "email": 9, "email_spelled": 9, "address": 8, "cedula": 7, "phone": 7, "passport": 7,
             "plate": 6, "birth": 6, "slug": 5, "name": 5, "handle": 4, "nickname": 3, "first": 3,
             "surname": 3, "occupation": 2, "barrio": 2, "year": 1}
 
@@ -115,7 +115,8 @@ class EntityLog:
 
 
 class Anonymizer:
-    def __init__(self, registry: Registry, pmap: PseudonymMap, jev_cache=None):
+    def __init__(self, registry: Registry, pmap: PseudonymMap, jev_cache=None, knowledge: dict | None = None):
+        self.knowledge = knowledge or {}
         self.reg = registry
         self.pmap = pmap
         self.jev_cache = jev_cache
@@ -125,6 +126,15 @@ class Anonymizer:
         self.first_names = FIRST_NAMES | registry.first_names()
         self.thread_people: dict[str, set[str]] = {}
         self.prior_keys = set(pmap.data["entities"])  # people that existed in the previous run
+        # human-approved knowledge from the review dashboard
+        self.keep_extra = [k for k in self.knowledge.get("keep", []) if k]
+        self.keep_extra_fold = {fold(k) for k in self.keep_extra}
+        self.rx_keep_extra = (re.compile(r"(?<![\w])(" + "|".join(map(re.escape, sorted(self.keep_extra, key=len, reverse=True))) + r")(?![\w])")
+                              if self.keep_extra else None)
+        idents = [i["text"] for i in self.knowledge.get("identifiers", []) if i.get("text")]
+        self.rx_identifiers = (re.compile("(" + "|".join(map(re.escape, sorted(idents, key=len, reverse=True))) + ")", re.I)
+                               if idents else None)
+        self.occ.exact.update({fold(k): v for k, v in self.knowledge.get("occupations", {}).items()})
         self._compile()
 
     # ---------------------------------------------------------------- setup
@@ -204,6 +214,9 @@ class Anonymizer:
         for m in RX_PLATE.finditer(text):
             if re.search(r"placa|veh[ií]culo|carro|moto|plate", text[max(0, m.start() - 40):m.start()], re.I):
                 spans.append(Span(m.start(), m.end(), "plate", "", m.group(0), extra=m.group(0)))
+        if self.rx_identifiers:
+            for m in self.rx_identifiers.finditer(text):
+                spans.append(Span(m.start(), m.end(), "identifier", "", m.group(0), extra=m.group(0).upper()))
         for m in RX_ISO.finditer(text):
             if m.group(0) in self.birth_index:
                 spans.append(Span(m.start(), m.end(), "birth", self.birth_index[m.group(0)], m.group(0), extra=m.group(0)))
@@ -220,7 +233,8 @@ class Anonymizer:
                 cand = m.group(1)
                 toks = [t for t in cand.split() if t.lower() not in {"de", "del", "la", "los"}]
                 ft = [fold(t) for t in toks]
-                if fold(cand) in KEEP_FOLD or any(fold(k) in fold(cand) for k in KEEP if " " in k):
+                if fold(cand) in KEEP_FOLD or any(fold(k) in fold(cand) for k in KEEP if " " in k) \
+                        or fold(cand) in self.keep_extra_fold or any(k in fold(cand) for k in self.keep_extra_fold):
                     continue
                 if ft[0] not in self.first_names:
                     if self.jev_cache is not None and jev.enabled() and len(toks) >= 2 and \
@@ -323,7 +337,7 @@ class Anonymizer:
                 s.key = pick[0] if pick else cands[0]
         for s in spans:
             if not s.key:
-                if s.kind in ("cedula", "phone", "email", "email_spelled", "address", "passport", "plate"):
+                if s.kind in ("cedula", "phone", "email", "email_spelled", "address", "passport", "plate", "identifier"):
                     s.key = owner or f"{s.kind[:2]}:{s.extra}"
 
     # ---------------------------------------------------------------- rendering
@@ -390,6 +404,8 @@ class Anonymizer:
             return self.pmap.value(s.key, "birth", s.extra, lambda sd: gen_birth(s.extra, sd)), "birth_iso"
         if s.kind == "passport":
             return self.pmap.value(s.key, "passport", s.extra, lambda sd: gen_passport(s.extra, sd)), "passport"
+        if s.kind == "identifier":
+            return self.pmap.value(s.key, "identifier", s.extra, lambda sd: scramble(s.orig, sd)), "account"
         if s.kind == "plate":
             return self.pmap.value(s.key, "plate", s.extra, lambda sd: gen_plate(s.extra, sd)), "plate"
         return s.orig, ""
@@ -412,6 +428,9 @@ class Anonymizer:
     def keep_hits(self, text: str, rid: str, log: EntityLog):
         for m in RX_KEEP.finditer(text):
             log.keep(m.group(1), rid)
+        if self.rx_keep_extra:
+            for m in self.rx_keep_extra.finditer(text):
+                log.keep(m.group(1), rid)
 
     # ---------------------------------------------------------------- groups
     def anonymize_group(self, items: list[tuple[str, dict, list[tuple]]], base_context: set[str],
@@ -459,6 +478,22 @@ class Anonymizer:
                 set_path(rec, path, new)
                 self.keep_hits(t, rid, log)
         return context
+
+
+def scramble(original: str, seed: int) -> str:
+    """Same shape as the original: letters -> letters, digits -> digits, rest kept."""
+    out = []
+    for i, ch in enumerate(original):
+        r = (seed >> (i % 50)) + i * 7
+        if ch.isdigit():
+            out.append(str(r % 10))
+        elif ch.isalpha():
+            base = "ABCDEFGHJKLMNPRSTUVWXYZ"
+            c = base[r % len(base)]
+            out.append(c if ch.isupper() else c.lower())
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def set_path(rec: dict, path: tuple, value: str) -> None:

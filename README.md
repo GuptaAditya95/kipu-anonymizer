@@ -35,12 +35,32 @@ Built with the **Pi coding agent**. At request time the service runs **determini
 
 Every call may carry `Authorization: Bearer <token>`; it is accepted and never used to reject a request.
 
+## Verification and human review (iteration 2)
+
+After every full `/run` (in the background, after the job is `done`, so the judge never waits):
+
+1. **Mask** our own replacements as `[NOMBRE_1]`, `[CEDULA]`, `[EMAIL]`… so anything that still looks personal is something we missed.
+2. **Residual check (code):** leftover names, CAPS names, a surname right after one of our placeholders, `J. Castrillón`-style initials, nicknames (`la Mafe`), ID-like numbers, IPs, obfuscated emails, addresses. Dates, amounts and internal ids are ignored.
+3. **Jev** (TypeSafe decision model via OpenRouter) scores P(real PII left) on free text: parallel workers, cached, deduplicated. Skipped without `OPENROUTER_API_KEY`.
+4. **Decision:** a code hit, or P > 0.7 → high priority; 0.2–0.7 or a weak hit → low priority; otherwise pass. Jev can never clear a code hit.
+5. **Reasoning** (chat model via OpenRouter, deterministic heuristic fallback) gets each case with its connected datapoints: thread neighbours, other records with the same text, registry matches, people in the record and keep-list status. It returns a verdict, a proposed fix and a question.
+6. **Dashboard** `GET /v1/review?key=REVIEW_KEY`: a human accepts the proposal or answers ("person name", "identifier", "not PII / keep", "this person", "map occupation").
+7. Answers go to `data/state/knowledge.json`, and **the next `/run` applies them** (names, links, keep-list, literal identifiers, occupations).
+
+Measured: on 14 injected difficult cases, **9/9 leaks raised and 0/5 false alarms**. On the real post-incident output, **45 cases from 12,970 texts** (12 high). After answering the high cases and re-running, those leaks were gone and the validator stayed OK.
+
+```bash
+python scripts/simulate_cases.py     # inject difficult cases and measure the verifier
+```
+
 ## Repository layout
 
 ```
 .
 ├── app/
-│   └── main.py              # FastAPI service: endpoints, background jobs, atomic output
+│   ├── main.py              # FastAPI service: endpoints, background jobs, atomic output
+│   ├── review.py            # review API (key-protected)
+│   └── review.html          # review dashboard
 ├── pipeline/
 │   ├── ingest.py            # 1. download sources (throttled < 600 req/min)       [done]
 │   ├── normalize.py         # 2. raw -> output schema (chats, docs, tables)        [done]
@@ -50,7 +70,10 @@ Every call may carry `Authorization: Bearer <token>`; it is accepted and never u
 │   ├── pseudonyms.py        # 5. HMAC deterministic pseudonyms + persisted map     [skeleton]
 │   ├── generalize.py        # 6b. occupation -> sector, barrio -> barrio, year      [skeleton]
 │   ├── core.py              # 4-6 shared by /run and /anonymize                    [pass-through]
-│   ├── output.py            # 7. write 4 files + leak sweep                        [done/simple]
+│   ├── output.py            # 7. write 4 files + leak sweep                        [done]
+│   ├── verify.py            # mask -> residual -> Jev -> decide -> review cases    [done]
+│   ├── reasoning.py         # reasoning model over cases (+ heuristic fallback)    [done]
+│   ├── knowledge.py         # human answers -> knowledge applied by the next run    [done]
 │   └── run.py               # orchestrator (also a CLI)
 ├── resources/               # name lists, surnames, keep-list, occupation sectors, barrios
 ├── scripts/

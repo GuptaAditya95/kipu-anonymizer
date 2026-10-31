@@ -14,7 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-from pipeline import ingest, jev, normalize, output, snapshot
+from pipeline import ingest, jev, knowledge, normalize, output, snapshot
 from pipeline.core import Anonymizer
 from pipeline.process import Processor
 from pipeline.pseudonyms import PseudonymMap
@@ -51,7 +51,9 @@ class State:
         prior_links = json.loads(LINKS.read_text("utf-8")) if LINKS.exists() else {}
         reg = Registry()
         reg.build(records, users, by_user, prior_links, prior_people)
-        anon = Anonymizer(reg, self.pmap, self.jev_cache)
+        kn = knowledge.load()
+        knowledge.apply_to_registry(reg, kn)
+        anon = Anonymizer(reg, self.pmap, self.jev_cache, kn)
         if THREADS.exists():
             anon.thread_people = {k: set(v) for k, v in json.loads(THREADS.read_text("utf-8")).items()}
         return Processor(anon)

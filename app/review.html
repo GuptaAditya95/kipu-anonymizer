@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kipu anonymizer · revisión humana</title>
+<style>
+  :root { --bg:#f6f5f1; --card:#fff; --ink:#1d1d1b; --muted:#6b6a65; --line:#e3e1da; --hi:#b3261e; --lo:#9a6a00;
+          --ok:#1d6b45; --accent:#3c3489; --mark:#fde68a; --ph:#e6f1fb; }
+  * { box-sizing:border-box }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink) }
+  header { position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line); padding:14px 24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap }
+  h1 { font-size:18px; margin:0; font-weight:600 }
+  .stat { font-size:13px; color:var(--muted) } .stat b { color:var(--ink); font-size:16px }
+  main { max-width:1100px; margin:0 auto; padding:20px 24px 80px }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; align-items:center }
+  button, select, input { font:inherit; border:1px solid var(--line); background:var(--card); border-radius:8px; padding:6px 12px; cursor:pointer }
+  button:hover { border-color:#bbb } button.primary { background:var(--accent); color:#fff; border-color:var(--accent) }
+  button.on { background:var(--ink); color:#fff; border-color:var(--ink) }
+  .case { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px }
+  .case.answered { opacity:.55 }
+  .top { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px }
+  .pill { font-size:12px; border-radius:999px; padding:2px 10px; border:1px solid currentColor }
+  .high { color:var(--hi) } .low { color:var(--lo) } .ok { color:var(--ok) }
+  .span { font-weight:600; background:var(--mark); padding:0 4px; border-radius:4px }
+  .rid { font-family:ui-monospace, monospace; font-size:12px; color:var(--muted) }
+  .text { background:#fafaf7; border:1px solid var(--line); border-radius:8px; padding:10px 12px; white-space:pre-wrap; font-size:14px; margin:8px 0 }
+  .text mark { background:var(--mark) } .text .ph { background:var(--ph); color:#0c447c; border-radius:3px; padding:0 2px; font-size:12px }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px }
+  @media (max-width:800px) { .grid { grid-template-columns:1fr } }
+  .box { border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:13px }
+  .box h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted) }
+  .thread div { padding:2px 0 } .thread .this { font-weight:600 }
+  .ai { border-left:3px solid var(--accent) }
+  .q { font-weight:600; margin:10px 0 6px }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center }
+  .note { flex:1; min-width:180px }
+  .empty { text-align:center; color:var(--muted); padding:60px }
+  .kn { font-size:13px; color:var(--muted) }
+</style>
+</head>
+<body>
+<header>
+  <h1>Revisión humana · casos de posible PII</h1>
+  <span class="stat">Textos revisados <b id="s-texts">–</b></span>
+  <span class="stat">Pasan <b id="s-pass">–</b></span>
+  <span class="stat">Alta <b id="s-high" class="high">–</b></span>
+  <span class="stat">Baja <b id="s-low" class="low">–</b></span>
+  <span class="stat">Respondidos <b id="s-ans">–</b></span>
+  <span class="stat" id="s-jev"></span>
+  <span class="stat" id="s-status"></span>
+</header>
+<main>
+  <div class="bar">
+    <button data-f="open" class="on">Abiertos</button>
+    <button data-f="high">Alta prioridad</button>
+    <button data-f="low">Baja prioridad</button>
+    <button data-f="answered">Respondidos</button>
+    <button data-f="all">Todos</button>
+    <span style="flex:1"></span>
+    <span class="kn" id="kn"></span>
+    <button id="rebuild" class="primary">Reconstruir casos</button>
+  </div>
+  <div id="list"></div>
+</main>
+<script>
+const KEY = new URLSearchParams(location.search).get('key') || '';
+const Q = s => `${s}${s.includes('?') ? '&' : '?'}key=${encodeURIComponent(KEY)}`;
+let DATA = {cases: []}, FILTER = 'open', SECTORS = [];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function hl(text, span) {
+  let h = esc(text).replace(/\[[A-Z_]+(?:_(?:\d+|P))?\]/g, m => `<span class="ph">${m}</span>`);
+  if (span) { const e = esc(span); const i = h.indexOf(e); if (i >= 0) h = h.slice(0, i) + `<mark>${e}</mark>` + h.slice(i + e.length); }
+  return h;
+}
+
+async function load() {
+  const r = await fetch(Q('/v1/review/cases'));
+  if (!r.ok) { document.getElementById('list').innerHTML = `<div class="empty">Sin acceso (${r.status}). Abre la página con ?key=TU_REVIEW_KEY</div>`; return; }
+  DATA = await r.json(); SECTORS = DATA.sectors || [];
+  const d = DATA.decisions || {}, cs = DATA.cases || [];
+  document.getElementById('s-texts').textContent = DATA.texts_checked ?? '–';
+  document.getElementById('s-pass').textContent = d.pass ?? '–';
+  document.getElementById('s-high').textContent = cs.filter(c => c.priority === 'high').length;
+  document.getElementById('s-low').textContent = cs.filter(c => c.priority === 'low').length;
+  document.getElementById('s-ans').textContent = cs.filter(c => c.status === 'answered').length;
+  document.getElementById('s-jev').textContent = DATA.jev_enabled ? 'Jev activo' : 'Jev apagado (solo reglas)';
+  const st = DATA.status || {};
+  document.getElementById('s-status').textContent = st.running ? `⏳ ${st.progress}` : (st.error ? `⚠ ${st.error}` : (DATA.generated_at ? `generado ${DATA.generated_at}` : ''));
+  const kr = await fetch(Q('/v1/review/knowledge')); if (kr.ok) { const k = await kr.json();
+    document.getElementById('kn').textContent = `Conocimiento para la próxima corrida: ${k.person_names.length} nombres · ${k.links.length} vínculos · ${k.keep.length} conservar · ${k.identifiers.length} identificadores · ${Object.keys(k.occupations).length} ocupaciones`; }
+  render();
+  if (st.running) setTimeout(load, 3000);
+}
+
+function render() {
+  const cs = (DATA.cases || []).filter(c => FILTER === 'all' ? true : FILTER === 'answered' ? c.status === 'answered'
+     : c.status !== 'answered' && (FILTER === 'open' || c.priority === FILTER));
+  const el = document.getElementById('list');
+  if (!cs.length) { el.innerHTML = '<div class="empty">No hay casos en esta vista.</div>'; return; }
+  el.innerHTML = cs.map(card).join('');
+}
+
+function card(c) {
+  const ai = c.reasoning || {}, fix = ai.proposed_fix || {}, ctx = c.context || {}, reg = ctx.registry || {};
+  const thread = (ctx.thread || []).map(t => `<div class="${t.this ? 'this' : ''}">${esc(t.author || '')}: ${hl(t.text, t.this ? c.span : '')}</div>`).join('');
+  const linkOpts = [...new Set([...(reg.known_person_form || []), ...(reg.people_with_this_first_name || []), ...(ctx.people_in_record || []).map(p => p.key)].filter(Boolean))];
+  const pval = c.jev_p == null ? 'n/d' : c.jev_p.toFixed(2);
+  return `<div class="case ${c.status === 'answered' ? 'answered' : ''}" id="${c.case_id}">
+    <div class="top">
+      <span class="pill ${c.priority}">${c.priority === 'high' ? 'Alta' : 'Baja'}</span>
+      <span>${esc(c.reason)}</span> · <span class="span">${esc(c.span) || '(sin fragmento)'}</span>
+      <span class="rid">${esc(c.record_id)} · ${esc(c.field)} · Jev P=${pval}</span>
+      ${c.status === 'answered' ? `<span class="pill ok">respondido: ${esc(c.answer?.action)}</span>` : ''}
+    </div>
+    <div class="text">${hl(ctx.window || c.masked, c.span)}</div>
+    <div class="grid">
+      <div class="box ai"><h4>Razonamiento (${esc(ai.source || '')})</h4>
+        <div><b>${esc(ai.verdict)}</b> · ${esc(ai.kind)} · confianza ${ai.confidence ?? ''}</div>
+        <div>${esc(ai.explanation)}</div>
+        <div style="margin-top:6px">Propuesta: <b>${esc(fix.action)}</b> ${fix.value ? `«${esc(fix.value)}»` : ''} ${fix.entity_key ? '→ ' + esc(fix.entity_key) : ''} ${fix.sector ? '→ ' + esc(fix.sector) : ''}</div>
+      </div>
+      <div class="box"><h4>Datos conectados</h4>
+        <div>Mismo texto en otros registros: <b>${ctx.same_text_elsewhere?.count ?? 0}</b> ${(ctx.same_text_elsewhere?.examples || []).map(x => `<span class="rid">${esc(x)}</span>`).join(' ')}</div>
+        <div>Forma de persona conocida: ${(reg.known_person_form || []).map(esc).join(', ') || 'no'}</div>
+        <div>Primer token es nombre: ${reg.first_token_is_first_name ? 'sí' : 'no'} · Apellido: ${reg.has_surname_token ? 'sí' : 'no'} · En lista de conservar: ${reg.in_keep_list ? 'sí' : 'no'}</div>
+        <div>Personas con ese nombre: ${(reg.people_with_this_first_name || []).map(esc).join(', ') || '–'}</div>
+        <div>Personas en el registro: ${(ctx.people_in_record || []).map(p => esc(p.key || p.entity_id)).join(', ') || '–'}</div>
+      </div>
+    </div>
+    ${thread ? `<div class="box thread" style="margin-top:10px"><h4>Hilo</h4>${thread}</div>` : ''}
+    ${c.status !== 'answered' ? `
+    <div class="q">${esc(ai.question || '¿Es dato personal?')}</div>
+    <div class="actions">
+      ${fix.action && fix.action !== 'none' ? `<button class="primary" onclick='ans("${c.case_id}", ${JSON.stringify({action: fix.action, value: fix.value || c.span, entity_key: fix.entity_key, sector: fix.sector})})'>Aceptar propuesta</button>` : ''}
+      <button onclick='ans("${c.case_id}", {action:"person_name", value:${JSON.stringify(c.span)}})'>Es nombre de persona</button>
+      <button onclick='ans("${c.case_id}", {action:"identifier", value:${JSON.stringify(c.span)}})'>Es identificador/contacto</button>
+      <button onclick='ans("${c.case_id}", {action:"keep", value:${JSON.stringify(c.span)}})'>No es PII (conservar)</button>
+      ${linkOpts.length ? `<select id="lk-${c.case_id}">${linkOpts.map(k => `<option>${esc(k)}</option>`).join('')}</select>
+        <button onclick='ans("${c.case_id}", {action:"link", value:${JSON.stringify(c.span)}, entity_key: document.getElementById("lk-${c.case_id}").value})'>Es esta persona</button>` : ''}
+      <select id="sc-${c.case_id}"><option value="">ocupación →</option>${SECTORS.map(s => `<option>${esc(s)}</option>`).join('')}</select>
+      <button onclick='const s=document.getElementById("sc-${c.case_id}").value; if(s) ans("${c.case_id}", {action:"occupation", value:${JSON.stringify(c.span)}, sector:s})'>Mapear ocupación</button>
+      <input class="note" id="nt-${c.case_id}" placeholder="nota opcional">
+      <button onclick='ans("${c.case_id}", {action:"dismiss"})'>Descartar</button>
+    </div>` : ''}
+  </div>`;
+}
+
+async function ans(id, body) {
+  body.note = document.getElementById('nt-' + id)?.value || '';
+  const r = await fetch(Q(`/v1/review/cases/${id}/answer`), {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (r.ok) load(); else alert('Error ' + r.status);
+}
+
+document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+  FILTER = b.dataset.f; document.querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); render(); });
+document.getElementById('rebuild').onclick = async () => { await fetch(Q('/v1/review/verify'), {method:'POST'}); setTimeout(load, 800); };
+load();
+</script>
+</body>
+</html>
