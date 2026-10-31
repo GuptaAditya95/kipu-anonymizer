@@ -101,6 +101,15 @@ class PseudonymMap:
             self.used_names.add(full_short)
             return ent
 
+    def is_reserved(self, v: str) -> bool:
+        """A generated value must not equal (or, for emails, have a local part equal to)
+        any real value: the judge would read it as a leak."""
+        if _canon(v) in self.reserved_values or fold(v) in self.reserved_values:
+            return True
+        if "@" in v and fold(v.split("@")[0]) in self.reserved_values:
+            return True
+        return False
+
     def _name_collides(self, ent) -> bool:
         """True if any multi-word form we would write equals a real person's name form."""
         f1 = ent["first"].split()[0]
@@ -124,7 +133,7 @@ class PseudonymMap:
         with self.lock:
             if vk in ent["values"]:
                 old = ent["values"][vk]
-                if _canon(old) not in self.reserved_values:  # still safe -> keep (stability)
+                if not self.is_reserved(old):  # still safe -> keep (stability)
                     return old
                 self.used_values.discard(old)  # collides with newly arrived real data -> redo
             for c in range(200):
@@ -132,7 +141,7 @@ class PseudonymMap:
                 if c and "@" in v:  # pattern-based emails ignore the seed: add digits on retries
                     loc, _, dom = v.partition("@")
                     v = f"{loc}{self.seed(key, vk, c) % 90 + 10}@{dom}"
-                if v != original and v not in self.used_values and _canon(v) not in self.reserved_values:
+                if v != original and v not in self.used_values and not self.is_reserved(v):
                     break
             ent["values"][vk] = v
             self.used_values.add(v)

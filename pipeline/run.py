@@ -87,13 +87,26 @@ def run_pipeline(sources_url: str | None, token: str | None, state: State, offli
         summary["missing_in_sources"] = records.pop("_missing", {})
         cur_snapshot = snapshot.take(RAW, records)
         summary["changes"] = snapshot.diff(prev_snapshot, cur_snapshot)
-        state.processor = state.build(records)
-        out, entities = state.processor.run(records, prev_entities=prev_entities)
-
-        tmp = DATA / "output.tmp"
-        if tmp.exists():
-            shutil.rmtree(tmp)
-        output.write_output(tmp, out, entities)
+        # Self-check: if any real value appears in the output (e.g. a generated value that
+        # happens to equal a real one), forbid it and reprocess. Up to 3 passes.
+        extra_reserved: set[str] = set()
+        passes = 0
+        while True:
+            passes += 1
+            state.processor = state.build(records)
+            if extra_reserved:
+                state.pmap.reserve(extra_reserved, extra_reserved)
+                state.processor.a.pmap.reserve(extra_reserved, extra_reserved)
+            out, entities = state.processor.run(records, prev_entities=prev_entities)
+            tmp = DATA / "output.tmp"
+            if tmp.exists():
+                shutil.rmtree(tmp)
+            output.write_output(tmp, out, entities)
+            leaks = output.leak_sweep(tmp, entities, limit=200)
+            if not leaks or passes >= 3:
+                break
+            extra_reserved |= {l["original"] for l in leaks}
+        summary["self_check_passes"] = passes
         if OUT.exists():
             shutil.rmtree(OUT)
         tmp.rename(OUT)  # atomic swap: /output never serves a half-written run
@@ -104,7 +117,7 @@ def run_pipeline(sources_url: str | None, token: str | None, state: State, offli
         summary["entities"] = {"people": sum(1 for e in entities if not e.get("kept")),
                                "kept": sum(1 for e in entities if e.get("kept"))}
         summary["stability"] = snapshot.stability(prev_entities, entities)
-        summary["leaks"] = output.leak_sweep(OUT, entities, limit=30)
+        summary["leaks"] = leaks[:30]
         summary["unmapped_occupations"] = sorted(set(state.processor.a.occ.misses))
         summary["jev"] = {"calls": state.jev_cache.calls, "tokens_in": state.jev_cache.tokens_in,
                           "cost_usd": round(state.jev_cache.cost, 6)}

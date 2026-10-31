@@ -36,6 +36,13 @@ We replayed run #1 locally with the exact code that produced it, then ran the ne
 - **Stability 99%** (199 of 201 previous people with identical pseudonyms). The 2 changes are deliberate: each avoided a validator leak.
 - 5 of 201 people have any difference at all (2 deliberate fixes, 3 that lost one or two chat messages in a three-way "Alejandra Rojas" namesake case). Known, documented, small.
 
+## Run #2 (real evaluation) and what we learned from it
+- Run #2 on the laptop: `changes` detected all the Págalo data, 2,999 / 34 / 7,823 records, **stability 99.5%**, but **1 leak**: a generated email for a new Págalo customer (`arojas@…`) reused the Slack username of an old customer, which the validator counts as a leak. Our local replay used a different SALT, so it hadn't shown up.
+- Lesson: collisions between generated and real values depend on the SALT, so testing one SALT isn't enough.
+- Fixes:
+  1. **Self-check before finishing every `/run`:** a validator-equivalent leak sweep. Any real value found in the output is forbidden and the run is reprocessed (up to 3 passes). Only the offending values change, so stability stays intact.
+  2. Stress test of the run #1 → run #2 → run #3 path with several SALTs: validator OK and 0 leaks in all; strict stability vs run #1 98.5–100%. The SALT that reproduced the laptop's run #2 leak was fixed on the 2nd self-check pass.
+
 ## What we'd do with more time
 - Store uid links and declared pseudonyms explicitly from run #1 (they're stored from now on).
 - A human review queue for ambiguous namesakes (iteration 2 dashboard).
