@@ -1,0 +1,26 @@
+{
+ "_note": "barrios per city for generalization. Extend from clientes.csv.",
+ "Cali": [
+  "Granada",
+  "Santa Mónica",
+  "El Peñón",
+  "San Fernando"
+ ],
+ "Medellín": [
+  "Envigado",
+  "Castilla",
+  "Robledo",
+  "Laureles"
+ ],
+ "Bogotá": [
+  "Cedritos",
+  "Chapinero",
+  "Usaquén",
+  "Teusaquillo"
+ ],
+ "Bucaramanga": [
+  "Cabecera",
+  "Real de Minas",
+  "Sotomayor"
+ ]
+}

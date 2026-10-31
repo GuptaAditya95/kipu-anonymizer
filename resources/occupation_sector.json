@@ -1,0 +1,14 @@
+{
+ "_note": "occupation (lowercase) -> sector. From sample: fotógrafa, periodista.",
+ "fotógrafa": "profesional de las industrias creativas",
+ "fotógrafo": "profesional de las industrias creativas",
+ "periodista": "profesional de medios",
+ "community manager": "profesional de medios",
+ "administradora": "profesional de servicios",
+ "abogada": "profesional del derecho",
+ "abogado": "profesional del derecho",
+ "enfermera": "profesional de la salud",
+ "contadora": "profesional financiero",
+ "mecánico": "técnico",
+ "conductor de plataforma": "trabajador de transporte"
+}

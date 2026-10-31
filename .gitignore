@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Real source data contains PII - never commit it
+data/
+sample/
+fuentes/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
